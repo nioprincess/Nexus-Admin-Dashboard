@@ -2,25 +2,25 @@
 'use client';
 import { useState } from 'react';
 import Sidebar from '@/components/Sidebar';
-import Navbar from '@/components/Navbar';
+import Navbar from '@/components/Navbar1';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-  const closeSidebar = () => setIsSidebarOpen(false);
+  const toggleSidebar = () => {
+    setIsSidebarOpen(!isSidebarOpen);
+  };
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar isSidebarOpen={isSidebarOpen} onClose={closeSidebar} />
+      <Sidebar isSidebarOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       
-      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Navbar with mobile menu button */}
-        <Navbar onToggle={toggleSidebar} />
+        <Navbar
+          toggleSidebar={toggleSidebar} 
+          isSidebarOpen={isSidebarOpen} 
+        />
         
-        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">
           {children}
         </main>

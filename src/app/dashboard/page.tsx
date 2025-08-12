@@ -1,4 +1,5 @@
 // app/dashboard/page.jsx
+import AnalyticComponent from "./analytics/page";
 export default function DashboardPage() {
   return (
     <div>
@@ -10,13 +11,16 @@ export default function DashboardPage() {
           <p className="text-3xl font-bold mt-2  bg-blue-100 w-24 cursor-pointer hover:w-60 p-1 rounded-md">1,234</p>
         </div>
         <div className="bg-white p-6 border-[1px] border-greyColor hover:shadow-lg cursor-pointer rounded-lg shadow">
-          <h3 className="text-lg font-medium">Active Projects</h3>
+          <h3 className="text-lg font-medium">Engaged users</h3>
           <p className="text-3xl font-bold mt-2 bg-blue-100 w-24 cursor-pointer hover:w-60 p-1 rounded-md">24</p>
         </div>
         <div className="bg-white p-6 border-[1px] border-greyColor hover:shadow-lg cursor-pointer rounded-lg shadow">
-          <h3 className="text-lg font-medium">Upcoming Events</h3>
+          <h3 className="text-lg font-medium">Received Feedback</h3>
           <p className="text-3xl font-bold mt-2  bg-blue-100 w-24 cursor-pointer rounded-md hover:w-60 p-1">5</p>
         </div>
+      </div>
+      <div className="mt-8">
+        <AnalyticComponent />
       </div>
     </div>
   );

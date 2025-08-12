@@ -40,7 +40,7 @@ export default function Navbar({ toggleSidebar, isSidebarOpen }: {
             </button>
 
             {/* Profile section */}
-            <Link href="/dashboard/profile" className="flex items-center space-x-2 group">
+            <Link href="/super_admin/profile" className="flex items-center space-x-2 group">
               <div className="relative">
                 <img 
                   src="/profile_pic.webp" 
