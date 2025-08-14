@@ -1,0 +1,20 @@
+const SDGS = [
+  { id: '1', name: 'No Poverty', image: '/sdg1.png', color: '#e5243b' },
+  { id: '2', name: 'Zero Hunger', image: '/sdg2.png', color: '#DDA63A' },
+  { id: '3', name: 'Good Health', image: '/sdg3.png', color: '#4C9F38' },
+  { id: '4', name: 'Quality Education', image: '/sdg4.png', color: '#C5192D' },
+  { id: '5', name: 'Gender Equality', image: '/sdg5.png', color: '#FF3A21' },
+  { id: '6', name: 'Clean Water and Sanitation', image: '/sdg1.png', color: '#e5243b' },
+  { id: '7', name: 'Affordable and clean energy', image: '/sdg2.png', color: '#DDA63A' },
+  { id: '8', name: 'Decent work and Economic growth', image: '/sdg3.png', color: '#4C9F38' },
+  { id: '9', name: 'Industry innovation and infrastructure', image: '/sdg4.png', color: '#C5192D' },
+  { id: '10', name: 'Reduced Inequalities', image: '/sdg5.png', color: '#FF3A21' },
+  { id: '11', name: 'Sustainable Cities and Communities', image: '/sdg4.png', color: '#C5192D' },
+  { id: '12', name: 'Responsible Consumption and Production', image: '/sdg5.png', color: '#FF3A21' },
+  { id: '13', name: 'Climate Action', image: '/sdg1.png', color: '#e5243b' },
+  { id: '14', name: '', image: '/sdg2.png', color: '#DDA63A' },
+  { id: '15', name: 'Life on Land', image: '/sdg3.png', color: '#4C9F38' },
+  { id: '16', name: 'Peace, Justice and Strong Institutions', image: '/sdg4.png', color: '#C5192D' },
+  { id: '17', name: 'Partnerships for the Goals', image: '/sdg5.png', color: '#FF3A21' },
+  // Add all 17 SDGs here...
+];
