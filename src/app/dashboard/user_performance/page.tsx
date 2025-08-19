@@ -383,7 +383,7 @@ const UserPerformanceDashboard = () => {
                         <div className="flex items-center">
                           <div className="w-16 md:w-24 bg-gray-200 rounded-full h-2 md:h-2.5">
                             <div
-                              className="bg-blue-600 h-2 md:h-2.5 rounded-full"
+                              className="bg-blueColor h-2 md:h-2.5 rounded-full"
                               style={{ width: `${user.completionRate}%` }}
                             ></div>
                           </div>
