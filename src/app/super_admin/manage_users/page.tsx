@@ -8,105 +8,177 @@ import {
   FiMail,
   FiPhone,
 } from "react-icons/fi";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  doc,
+  setDoc,
+  collection,
+  addDoc,
+  getDocs,
+  deleteDoc,
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase/firebaseConfig";
+import { FormEvent, useEffect } from "react";
+
 import { useState } from "react";
+import { create } from "domain";
+import * as admin from "firebase-admin";
+import deleteUser from "@/lib/firebase/deleteUser";
 
 interface User {
-  id: string;
-  image: string;
+  uid: string;
   name: string;
   phone: string;
   email: string;
   role: "super-admin" | "admin" | "content-manager" | "user";
   lastLogin: string;
   password?: string; // Only for new user creation
+  profilePicture?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 const ManageUsers = () => {
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: "1",
-      image: "",
-      name: "Super Admin",
-      phone: "+250 788 000 001",
-      email: "superadmin@example.com",
-      role: "super-admin",
-      lastLogin: "2025-08-25 09:30",
-    },
-    {
-      id: "2",
-      image: "",
-      name: "Admin User",
-      phone: "+250 788 123 456",
-      email: "admin@example.com",
-      role: "admin",
-      lastLogin: "2025-08-20 10:30",
-    },
-    {
-      id: "3",
-      image: "",
-      name: "Content Manager",
-      phone: "+250 788 654 321",
-      email: "content@example.com",
-      role: "content-manager",
-      lastLogin: "2025-08-19 14:15",
-    },
-    {
-      id: "4",
-      image: "",
-      name: "Regular User",
-      phone: "+250 788 111 222",
-      email: "user@example.com",
-      role: "user",
-      lastLogin: "2025-08-18 09:45",
-    },
-  ]);
-
+  const [users, setUsers] = useState<User[]>([]);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
   const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   const [newUser, setNewUser] = useState<
-    Omit<User, "id" | "lastLogin"> & { password: string }
+    Omit<User, "uid" | "lastLogin"> & { password: string }
   >({
     name: "",
     email: "",
     phone: "",
-    role: "user",
-    image: "",
+    role: "admin",
+    profilePicture: "",
     password: "",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   });
   const [activeRoleFilter, setActiveRoleFilter] = useState<
     "all" | User["role"]
   >("all");
 
-  const handleDelete = (userId: string) => {
-    setUsers(users.filter((user) => user.id !== userId));
-  };
-
-  const handleAddUser = (e: React.FormEvent) => {
+  const handleAddUser = async (e: React.FormEvent) => {
     e.preventDefault();
-    const newUserWithId: User = {
-      ...newUser,
-      id: (users.length + 1).toString(),
-      lastLogin:
-        new Date().toISOString().split("T")[0] +
-        " " +
-        new Date().toTimeString().split(" ")[0].substring(0, 5),
-    };
-    setUsers([...users, newUserWithId]);
-    setIsAddUserModalOpen(false);
-    setNewUser({
-      name: "",
-      email: "",
-      phone: "",
-      role: "user",
-      image: "",
-      password: "",
-    });
+
+    try {
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        newUser.email,
+        newUser.password
+      );
+
+      const userId = userCredential.user.uid;
+
+      await setDoc(doc(db, "normal_users", userId), {
+        uid: userId,
+        name: newUser.name,
+        email: newUser.email,
+        phone: newUser.phone,
+        role: newUser.role || "admin",
+        lastLogin: new Date().toISOString(),
+        profilePicture: newUser.profilePicture || null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+
+      setUsers([
+        ...users,
+        {
+          uid: userCredential.user.uid,
+          ...newUser,
+          lastLogin: new Date().toISOString(),
+        },
+      ]);
+
+      // Reset form data and close modal
+      setNewUser({
+        name: "",
+        email: "",
+        phone: "",
+        role: "admin",
+        profilePicture: "",
+        password: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      setIsAddUserModalOpen(false);
+    } catch (error) {
+      console.error("Error creating user:", error);
+    }
   };
 
+  //fetching users from firestore
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const userCollection = collection(db, "normal_users");
+      const userSnapShot = await getDocs(userCollection);
+      const userList = userSnapShot.docs.map((doc) => ({
+        uid: doc.id,
+        ...doc.data(),
+      })) as User[];
+      setUsers(userList);
+    };
+
+    fetchUsers();
+  }, []);
+
+  // const handleDelete = async (userId: string) => {
+  //   try {
+
+  //     await deleteDoc(doc(db, "normal_users", userId));
+
+  //     setUsers(users.filter((user) => user.uid !== userId));
+  //   } catch (error) {
+  //     console.error("Error deleting user:", error);
+  //   }
+  // };
+
+  const handleDelete = async (uid: string) => {
+    if (!confirm("Are you sure you want to delete this user?")) return;
+    setDeletingUserId(uid);
+    try {
+      // Delete from Firestore
+      await deleteDoc(doc(db, "normal_users", uid));
+
+      // Delete from Firebase Auth via API route
+      await fetch("/api/deleteUser", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ uid: uid }),
+      });
+
+      // Update local state so UI refreshes immediately
+      setUsers(users.filter((user) => user.uid !== uid));
+    } catch (error) {
+      console.error("Error deleting user:", error);
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
   const handleInputChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
   ) => {
     const { name, value } = e.target;
     setNewUser((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Reset form when modal opens/closes
+  const handleModalToggle = (open: boolean) => {
+    setIsAddUserModalOpen(open);
+    if (!open) {
+      // Reset form when closing modal
+      setNewUser({
+        name: "",
+        email: "",
+        phone: "",
+        role: "admin",
+        profilePicture: "",
+        password: "",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    }
   };
 
   const filteredUsers =
@@ -126,7 +198,7 @@ const ManageUsers = () => {
               <div className="bg-blue-600 px-6 py-4 rounded-t-lg flex justify-between items-center">
                 <h2 className="text-xl font-bold text-white">Add New User</h2>
                 <button
-                  onClick={() => setIsAddUserModalOpen(false)}
+                  onClick={() => handleModalToggle(false)}
                   className="text-white hover:text-gray-200"
                 >
                   <FiX size={24} />
@@ -179,25 +251,6 @@ const ManageUsers = () => {
                   />
                 </div>
 
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-2" htmlFor="role">
-                    Role
-                  </label>
-                  <select
-                    id="role"
-                    name="role"
-                    value={newUser.role}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {currentUserRole === "super-admin" && (
-                      <option value="admin">Admin</option>
-                    )}
-                    <option value="content-manager">Content Manager</option>
-                    <option value="user">Regular User</option>
-                  </select>
-                </div>
-
                 <div className="mb-6">
                   <label
                     className="block text-gray-700 mb-2"
@@ -219,7 +272,7 @@ const ManageUsers = () => {
                 <div className="flex justify-end">
                   <button
                     type="button"
-                    onClick={() => setIsAddUserModalOpen(false)}
+                    onClick={() => handleModalToggle(false)}
                     className="mr-3 px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
                   >
                     Cancel
@@ -243,7 +296,7 @@ const ManageUsers = () => {
               <h1 className="text-xl font-bold text-white">Manage Users</h1>
               {currentUserRole === "super-admin" && (
                 <button
-                  onClick={() => setIsAddUserModalOpen(true)}
+                  onClick={() => handleModalToggle(true)}
                   className="flex items-center px-4 py-2 bg-blueColor text-white rounded-md hover:bg-blue-500"
                 >
                   <FiPlus className="mr-2" />
@@ -290,6 +343,8 @@ const ManageUsers = () => {
           </div>
 
           {/* Users Table */}
+          {/* displaying user data from firestore */}
+
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
@@ -303,9 +358,9 @@ const ManageUsers = () => {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Role
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Last Login
-                  </th>
+                  </th> */}
                   <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Actions
                   </th>
@@ -314,14 +369,14 @@ const ManageUsers = () => {
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredUsers.length > 0 ? (
                   filteredUsers.map((user) => (
-                    <tr key={user.id}>
+                    <tr key={user.uid}>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            {user.image ? (
+                            {user.profilePicture ? (
                               <img
                                 className="h-10 w-10 rounded-full"
-                                src={user.image}
+                                src={user.profilePicture}
                                 alt=""
                               />
                             ) : (
@@ -356,27 +411,33 @@ const ManageUsers = () => {
                           }`}
                         >
                           {user.role
-                            .split("-")
-                            .map(
-                              (word) =>
-                                word.charAt(0).toUpperCase() + word.slice(1)
-                            )
-                            .join(" ")}
+                            ? user.role
+                                .split("-")
+                                .map(
+                                  (word) =>
+                                    word.charAt(0).toUpperCase() + word.slice(1)
+                                )
+                                .join(" ")
+                            : "User"}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {user.lastLogin}
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end space-x-2">
                           {currentUserRole === "super-admin" &&
                             user.role !== "super-admin" && (
                               <button
-                                onClick={() => handleDelete(user.id)}
+                                onClick={() => handleDelete(user.uid)}
                                 className="text-red-600 hover:text-red-900"
                                 title="Delete User"
                               >
-                                <FiTrash2 className="h-5 w-5" />
+                                {deletingUserId === user.uid ? (
+                                  <span className="animate-spin h-5 w-5 border-2 border-gray-300 border-t-blue-500 rounded-full inline-block"></span>
+                                ) : (
+                                  <FiTrash2 className="h-5 w-5" />
+                                )}
                               </button>
                             )}
                         </div>

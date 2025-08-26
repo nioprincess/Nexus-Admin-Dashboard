@@ -2,31 +2,42 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { auth } from "@/lib/firebase/firebaseConfig";
+import { sendPasswordResetEmail } from "firebase/auth";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setMessage("");
+    setError("");
 
     try {
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Send password reset email using Firebase Auth
+      await sendPasswordResetEmail(auth, email);
 
-      // In real app: await fetch('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ email }) })
       setMessage("Password reset instructions sent to your email!");
+      setEmail(""); // Clear the email field
+    } catch (error: any) {
+      console.error("Password reset error:", error);
 
-      // Redirect to verification page after success
-      setTimeout(() => {
-        router.push(`/auth/verify-code?email=${encodeURIComponent(email)}`);
-      }, 2000);
-    } catch (error) {
-      setMessage("Error sending reset instructions. Please try again.");
+      let errorMessage = "Error sending reset instructions. Please try again.";
+
+      if (error.code === "auth/user-not-found") {
+        errorMessage = "No account found with this email address.";
+      } else if (error.code === "auth/invalid-email") {
+        errorMessage = "Invalid email address format.";
+      } else if (error.code === "auth/too-many-requests") {
+        errorMessage = "Too many attempts. Please try again later.";
+      }
+
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -68,14 +79,14 @@ export default function ForgotPasswordPage() {
           </div>
 
           {message && (
-            <div
-              className={`p-3 rounded-md text-sm ${
-                message.includes("Error")
-                  ? "bg-red-100 text-red-700"
-                  : "bg-green-100 text-green-700"
-              }`}
-            >
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
               {message}
+            </div>
+          )}
+
+          {error && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative">
+              {error}
             </div>
           )}
 
@@ -98,6 +109,14 @@ export default function ForgotPasswordPage() {
             </Link>
           </div>
         </form>
+
+        {/* Additional information */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded text-sm">
+          <p className="font-semibold">Note:</p>
+          <p>• Check your spam folder if you don't see the email</p>
+          <p>• The reset link will expire after a short period</p>
+          <p>• You'll be redirected to a page to create a new password</p>
+        </div>
       </div>
     </div>
   );

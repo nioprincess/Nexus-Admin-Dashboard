@@ -2,6 +2,9 @@
 "use client";
 import Link from "next/link";
 import { usePathname, redirect } from "next/navigation";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase/firebaseConfig";
+import { useRouter } from "next/navigation";
 import {
   FiBook,
   FiUsers,
@@ -26,8 +29,14 @@ const Sidebar = ({
     return pathname.startsWith(href);
   };
 
-  const logout = () => {
-    redirect("/login");
+  const router = useRouter();
+  const logout = async () => {
+    try {
+      await signOut(auth);
+      router.push("/auth/login");
+    } catch (error: any) {
+      console.error("Sign out error" + error.message);
+    }
   };
   return (
     <>
@@ -136,9 +145,9 @@ const Sidebar = ({
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
             <Link
-              href="/login"
+              href="/auth/login"
               className="flex items-center p-4 text-gray-700 hover:bg-greenColor/20 transition-colors"
-              onClick={onClose}
+              onClick={logout}
             >
               <FiLogOut className="mr-3" /> Logout
             </Link>
