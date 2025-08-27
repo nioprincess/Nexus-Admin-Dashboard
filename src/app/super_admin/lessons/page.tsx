@@ -112,6 +112,7 @@ type Lesson = {
   description: string;
   activities: string[];
   interactiveQuestion: string;
+  answer: String;
   status: "Published" | "Draft";
   lastUpdated: string;
 };
@@ -136,77 +137,11 @@ export default function ManageLessons() {
     description: "",
     activities: [""],
     interactiveQuestion: "",
+    answer: "",
     status: "Draft",
   });
 
-  const [data, setData] = useState<Lesson[]>([
-    {
-      id: "001",
-      sdgId: "1",
-      image: "/sdg1.jpeg",
-      title: "No Poverty",
-      description: "Understanding poverty and its impacts",
-      activities: ["Group discussion", "Case study analysis"],
-      interactiveQuestion: "How can we reduce poverty in our community?",
-      status: "Published",
-      lastUpdated: "2025-07-28",
-    },
-    {
-      id: "002",
-      sdgId: "4",
-      image: "/sdg4.png",
-      title: "Quality Education",
-      description: "Exploring access to education worldwide",
-      activities: ["Research project", "Class presentation"],
-      interactiveQuestion: "What barriers to education exist in your area?",
-      status: "Draft",
-      lastUpdated: "2025-07-10",
-    },
-    {
-      id: "001",
-      sdgId: "1",
-      image: "/sdg1.jpeg",
-      title: "No Poverty",
-      description: "Understanding poverty and its impacts",
-      activities: ["Group discussion", "Case study analysis"],
-      interactiveQuestion: "How can we reduce poverty in our community?",
-      status: "Published",
-      lastUpdated: "2025-07-28",
-    },
-    {
-      id: "002",
-      sdgId: "4",
-      image: "/sdg4.png",
-      title: "Quality Education",
-      description: "Exploring access to education worldwide",
-      activities: ["Research project", "Class presentation"],
-      interactiveQuestion: "What barriers to education exist in your area?",
-      status: "Draft",
-      lastUpdated: "2025-07-10",
-    },
-    {
-      id: "001",
-      sdgId: "1",
-      image: "/sdg1.jpeg",
-      title: "No Poverty",
-      description: "Understanding poverty and its impacts",
-      activities: ["Group discussion", "Case study analysis"],
-      interactiveQuestion: "How can we reduce poverty in our community?",
-      status: "Published",
-      lastUpdated: "2025-07-28",
-    },
-    {
-      id: "002",
-      sdgId: "4",
-      image: "/sdg4.png",
-      title: "Quality Education",
-      description: "Exploring access to education worldwide",
-      activities: ["Research project", "Class presentation"],
-      interactiveQuestion: "What barriers to education exist in your area?",
-      status: "Draft",
-      lastUpdated: "2025-07-10",
-    },
-  ]);
+  const [data, setData] = useState<Lesson[]>([]);
 
   const columns: ColumnDef<Lesson>[] = [
     {
@@ -379,6 +314,7 @@ export default function ManageLessons() {
       description: lesson.description,
       activities: [...lesson.activities],
       interactiveQuestion: lesson.interactiveQuestion,
+      answer: "",
       status: lesson.status,
     });
     setFormStep("form");
@@ -400,6 +336,7 @@ export default function ManageLessons() {
       description: "",
       activities: [""],
       interactiveQuestion: "",
+      answer: "",
       status: "Draft",
     });
     setSelectedSdg(null);

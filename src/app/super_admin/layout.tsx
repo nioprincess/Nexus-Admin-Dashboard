@@ -11,20 +11,20 @@ export default function DashboardLayout({
 }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const toggleSidebar = () => {
-    setIsSidebarOpen(!isSidebarOpen);
-  };
+  const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
+  const closeSidebar = () => setIsSidebarOpen(false);
 
   return (
     <div className="flex h-screen bg-gray-50">
-      <Sidebar
-        isSidebarOpen={isSidebarOpen}
-        onClose={() => setIsSidebarOpen(false)}
-      />
+      {/* Sidebar */}
+      <Sidebar isSidebarOpen={isSidebarOpen} onClose={closeSidebar} />
 
+      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Navbar with mobile menu button */}
         <Navbar toggleSidebar={toggleSidebar} isSidebarOpen={isSidebarOpen} />
 
+        {/* Page Content */}
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>
     </div>
