@@ -4,12 +4,14 @@ import { auth, db } from "@/lib/firebase/firebaseConfig";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
+  setPersistence,
+  browserSessionPersistence,
   GoogleAuthProvider,
   linkWithPopup,
 } from "firebase/auth";
 import { getDoc, doc, setDoc, updateDoc } from "firebase/firestore";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState, startTransition } from "react";
+import { FormEvent, useState, useEffect, startTransition } from "react";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -19,6 +21,13 @@ export default function LoginPage() {
   const [Email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  useEffect(() => {
+    // Set session persistence on component mount
+    setPersistence(auth, browserSessionPersistence).catch((error) => {
+      console.error("Error setting auth persistence:", error);
+    });
+  }, []);
+
   const SigIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
@@ -27,6 +36,7 @@ export default function LoginPage() {
     console.log("Attempting login with:", { Email, password });
 
     try {
+      await setPersistence(auth, browserSessionPersistence);
       await auth.signOut();
 
       // Changes: login directly with Firebase Auth
@@ -40,23 +50,22 @@ export default function LoginPage() {
       const userDocRef = doc(db, "normal_users", user.uid);
       const userDoc = await getDoc(userDocRef);
 
-      // Changes: automatically create Firestore doc if missing
-      if (!userDoc.exists()) {
-        await setDoc(userDocRef, {
-          email: user.email,
-          name: null,
-          phone: null,
-          address: null,
-          profilePicture: null,
-          role: "super_admin", // default role
-          createdAt: new Date(),
-          lastLogin: new Date(),
-          uid: user.uid,
-        });
-      } else {
-        // update lastLogin timestamp
-        await setDoc(userDocRef, { lastLogin: new Date() }, { merge: true });
-      }
+      // // Changes: automatically create Firestore doc if missing
+      // if (!userDoc.exists()) {
+      //   await setDoc(userDocRef, {
+      //     email: user.email,
+      //     name: null,
+      //     phone: null,
+      //     address: null,
+      //     profilePicture: null,
+      //     role: "super_admin", // default role
+      //     createdAt: new Date(),
+      //     lastLogin: new Date(),
+      //     uid: user.uid,
+      //   });
+      // } else {
+      //   // update lastLogin timestamp
+      //   await setDoc(userDocRef, { lastLogin: new Date() }, { merge: true });
 
       const userData = userDoc.data() || {};
       let userRole = userData?.role || "super_admin";
@@ -68,12 +77,14 @@ export default function LoginPage() {
 
       console.log("User role:", userRole);
 
+      localStorage.setItem("authLoginEvent", Date.now().toString());
+      setTimeout(() => localStorage.removeItem("authLoginEvent"), 100);
       switch (userRole) {
         case "super_admin":
-          startTransition(() => router.push("/super_admin"));
+          window.location.href = "/super_admin";
           break;
         case "admin":
-          startTransition(() => router.push("/dashboard"));
+          window.location.href = "/dashboard";
           break;
         default:
           throw new Error("Invalid role");
@@ -120,39 +131,39 @@ export default function LoginPage() {
         const userDocRef = doc(db, "normal_users", user.uid);
         const userDoc = await getDoc(userDocRef);
 
-        // Changes: automatically create Firestore doc if missing
-        if (!userDoc.exists()) {
-          await setDoc(userDocRef, {
-            email: user.email,
-            name: null,
-            phone: null,
-            address: null,
-            role: "super_admin", // default role
-            createdAt: new Date(),
-            lastLogin: new Date(),
-            uid: user.uid,
-            profilePicture: user.photoURL || null,
-          });
-        } else if (userDoc.exists()) {
-          await updateDoc(userDocRef, {
-            email: user.email,
-            profilePicture: user.photoURL,
-            name: user.displayName,
-            lastLogin: new Date(),
-          });
-        } else {
-          await setDoc(userDocRef, { lastLogin: new Date() }, { merge: true });
-        }
+        // // Changes: automatically create Firestore doc if missing
+        // if (!userDoc.exists()) {
+        //   await setDoc(userDocRef, {
+        //     email: user.email,
+        //     name: null,
+        //     phone: null,
+        //     address: null,
+        //     role: "super_admin", // default role
+        //     createdAt: new Date(),
+        //     lastLogin: new Date(),
+        //     uid: user.uid,
+        //     profilePicture: user.photoURL || null,
+        //   });
+        // } else if (userDoc.exists()) {
+        //   await updateDoc(userDocRef, {
+        //     email: user.email,
+        //     profilePicture: user.photoURL,
+        //     name: user.displayName,
+        //     lastLogin: new Date(),
+        //   });
+        // } else {
+        //   await setDoc(userDocRef, { lastLogin: new Date() }, { merge: true });
+        // }
 
         const userData = userDoc.data() || { role: "super_admin" };
         const userRole = userData?.role || "super_admin";
 
         switch (userRole) {
           case "super_admin":
-            router.push("/super_admin");
+            window.location.href = "/super_admin";
             break;
           case "admin":
-            router.push("/dashboard");
+            window.location.href = "/dashboard";
             break;
           default:
             throw new Error("Unknown user role");

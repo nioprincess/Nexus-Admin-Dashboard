@@ -34,7 +34,12 @@ import {
 
 type Notification = {
   id: string;
-  notification_type: "tips" | "new_updates" | "success_stories";
+  notification_type:
+    | "tips"
+    | "new_updates"
+    | "success_stories"
+    | "reminders"
+    | "system_updates";
   title: string;
   description: string;
   url: string;
@@ -72,7 +77,7 @@ export default function ManageNotifications() {
       const querySnapshot = await getDocs(collection(db, "notifications"));
       const notifications: Notification[] = querySnapshot.docs.map((doc) => ({
         id: doc.id,
-        ...(doc.data() as Notification),
+        ...(doc.data() as Omit<Notification, "id">),
       }));
       setData(notifications);
     };
@@ -88,6 +93,10 @@ export default function ManageNotifications() {
         const type = row.original.notification_type;
         const typeMap = {
           tips: { label: "Tip", color: "bg-blue-100 text-blue-800" },
+          system_updates: {
+            label: "System Update",
+            color: "bg-indigo-100 text-indigo-800",
+          },
           new_updates: {
             label: "Update",
             color: "bg-purple-100 text-purple-800",
@@ -95,6 +104,10 @@ export default function ManageNotifications() {
           success_stories: {
             label: "Success Story",
             color: "bg-green-100 text-green-800",
+          },
+          reminders: {
+            label: "Reminder",
+            color: "bg-yellow-100 text-yellow-800",
           },
         };
         return (
@@ -403,7 +416,6 @@ export default function ManageNotifications() {
                   value={formData.url}
                   onChange={handleInputChange}
                   className="w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
-                  required
                 />
               </div>
 

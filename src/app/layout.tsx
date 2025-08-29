@@ -1,5 +1,6 @@
 // 📍 src/app/layout.tsx
 "use client";
+import { AuthProvider } from "@/app/context/AuthContext";
 import "../styles/globals.css";
 
 export default function RootLayout({
@@ -10,7 +11,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <div>{children}</div>
+        <AuthProvider>
+          <div>{children}</div>
+        </AuthProvider>
       </body>
     </html>
   );

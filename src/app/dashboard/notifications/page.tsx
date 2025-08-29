@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -21,12 +21,28 @@ import {
   FiChevronRight,
   FiSend,
 } from "react-icons/fi";
+import { db } from "@/lib/firebase/firebaseConfig";
+import {
+  addDoc,
+  collection,
+  getDocs,
+  doc,
+  updateDoc,
+  deleteDoc,
+  serverTimestamp,
+} from "firebase/firestore";
 
 type Notification = {
   id: string;
-  notification_type: "tips" | "new_updates" | "success_stories";
+  notification_type:
+    | "tips"
+    | "new_updates"
+    | "success_stories"
+    | "reminders"
+    | "system_updates";
   title: string;
   description: string;
+  url: string;
   status: "Published" | "Draft";
   createdAt: string;
   publishedAt?: string;
@@ -50,38 +66,24 @@ export default function ManageNotifications() {
     title: "",
     description: "",
     status: "Draft",
+    url: "",
   });
 
-  const [data, setData] = useState<Notification[]>([
-    {
-      id: "001",
-      notification_type: "tips",
-      title: "Daily Sustainability Tip",
-      description:
-        "Did you know turning off lights when not in use can save up to 15% on your energy bill?",
-      status: "Published",
-      createdAt: "2025-07-25",
-      publishedAt: "2025-07-28",
-    },
-    {
-      id: "002",
-      notification_type: "new_updates",
-      title: "New SDG Resources Available",
-      description:
-        "Check out our new educational materials on SDG 4 - Quality Education",
-      status: "Draft",
-      createdAt: "2025-07-26",
-    },
-    {
-      id: "003",
-      notification_type: "success_stories",
-      title: "Community Success Story",
-      description:
-        "How a local school reduced their waste by 75% in just 3 months",
-      status: "Draft",
-      createdAt: "2025-07-27",
-    },
-  ]);
+  const [data, setData] = useState<Notification[]>([]);
+
+  // ✅ Correctly fetch data from "notifications"
+  useEffect(() => {
+    const fetchData = async () => {
+      const querySnapshot = await getDocs(collection(db, "notifications"));
+      const notifications: Notification[] = querySnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...(doc.data() as Omit<Notification, "id">),
+      }));
+      setData(notifications);
+    };
+
+    fetchData();
+  }, []);
 
   const columns: ColumnDef<Notification>[] = [
     {
@@ -91,6 +93,10 @@ export default function ManageNotifications() {
         const type = row.original.notification_type;
         const typeMap = {
           tips: { label: "Tip", color: "bg-blue-100 text-blue-800" },
+          system_updates: {
+            label: "System Update",
+            color: "bg-indigo-100 text-indigo-800",
+          },
           new_updates: {
             label: "Update",
             color: "bg-purple-100 text-purple-800",
@@ -98,6 +104,10 @@ export default function ManageNotifications() {
           success_stories: {
             label: "Success Story",
             color: "bg-green-100 text-green-800",
+          },
+          reminders: {
+            label: "Reminder",
+            color: "bg-yellow-100 text-yellow-800",
           },
         };
         return (
@@ -117,6 +127,26 @@ export default function ManageNotifications() {
       cell: ({ row }) => (
         <div className="line-clamp-2">{row.original.description}</div>
       ),
+      size: 200,
+    },
+    {
+      accessorKey: "url",
+      header: "Link",
+      cell: ({ row }) => {
+        const url = row.original.url;
+        return url ? (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-blue-600 hover:underline"
+          >
+            {url.length > 30 ? url.substring(0, 30) + "..." : url}
+          </a>
+        ) : (
+          <span className="text-gray-400">—</span>
+        );
+      },
       size: 200,
     },
     {
@@ -204,35 +234,33 @@ export default function ManageNotifications() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const currentDate = new Date().toISOString().split("T")[0];
-
     if (editingNotification) {
-      setData(
-        data.map((notification) =>
-          notification.id === editingNotification.id
-            ? {
-                ...formData,
-                id: editingNotification.id,
-                createdAt: editingNotification.createdAt,
-                status: "Draft", // Force status to remain Draft when editing
-              }
-            : notification
+      const docRef = doc(db, "notifications", editingNotification.id);
+      await updateDoc(docRef, {
+        ...formData,
+      });
+      setData((prev) =>
+        prev.map((n) =>
+          n.id === editingNotification.id ? { ...n, ...formData } : n
         )
       );
     } else {
-      const newId = String(
-        Math.max(0, ...data.map((n) => parseInt(n.id))) + 1
-      ).padStart(3, "0");
+      const docRef = await addDoc(collection(db, "notifications"), {
+        ...formData,
+        createdAt: new Date().toISOString().split("T")[0],
+        timestamp: serverTimestamp(),
+      });
+
       setData([
         ...data,
         {
           ...formData,
-          id: newId,
-          createdAt: currentDate,
-          status: "Draft", // New notifications are always Draft
+          id: docRef.id,
+          createdAt: new Date().toISOString().split("T")[0],
+          status: "Draft",
         },
       ]);
     }
@@ -240,20 +268,22 @@ export default function ManageNotifications() {
     resetForm();
   };
 
-  const handlePublish = (id: string) => {
+  const handlePublish = async (id: string) => {
     if (
       confirm("Are you sure you want to publish this notification to users?")
     ) {
+      const docRef = doc(db, "notifications", id);
       const currentDate = new Date().toISOString().split("T")[0];
-      setData(
-        data.map((notification) =>
-          notification.id === id
-            ? {
-                ...notification,
-                status: "Published",
-                publishedAt: currentDate,
-              }
-            : notification
+      await updateDoc(docRef, {
+        status: "Published",
+        publishedAt: currentDate,
+      });
+
+      setData((prev) =>
+        prev.map((n) =>
+          n.id === id
+            ? { ...n, status: "Published", publishedAt: currentDate }
+            : n
         )
       );
     }
@@ -266,13 +296,15 @@ export default function ManageNotifications() {
       title: notification.title,
       description: notification.description,
       status: notification.status,
+      url: notification.url,
     });
     setIsFormOpen(true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm("Are you sure you want to delete this notification?")) {
-      setData(data.filter((notification) => notification.id !== id));
+      await deleteDoc(doc(db, "notifications", id));
+      setData((prev) => prev.filter((notification) => notification.id !== id));
     }
   };
 
@@ -282,6 +314,7 @@ export default function ManageNotifications() {
       title: "",
       description: "",
       status: "Draft",
+      url: "",
     });
     setEditingNotification(null);
     setIsFormOpen(false);
@@ -319,14 +352,16 @@ export default function ManageNotifications() {
                   <select
                     id="notification_type"
                     name="notification_type"
-                    value={formData.notification_type}
+                    value={formData.notification_type || ""}
                     onChange={handleInputChange}
                     className="w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
                     required
                   >
-                    <option value="tips">Tip</option>
-                    <option value="new_updates">New Update</option>
-                    <option value="success_stories">Success Story</option>
+                    <option value="tips">Tips</option>
+                    <option value="new_updates">New Updates</option>
+                    <option value="system_updates">System Updates</option>
+                    <option value="reminders">Reminders</option>
+                    <option value="success_stories">Success Stories</option>
                   </select>
                 </div>
 
@@ -365,6 +400,23 @@ export default function ManageNotifications() {
                     required
                   />
                 </div>
+              </div>
+
+              <div className="mb-4">
+                <label
+                  htmlFor="url"
+                  className="block text-sm font-medium text-gray-700 mb-1"
+                >
+                  URL*
+                </label>
+                <input
+                  type="text"
+                  id="url"
+                  name="url"
+                  value={formData.url}
+                  onChange={handleInputChange}
+                  className="w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-blue-500 focus:border-blue-500"
+                />
               </div>
 
               <div className="mt-8 flex justify-end space-x-3">

@@ -1,0 +1,11 @@
+[
+  {
+    "type": "Success Story",
+    "description": "Meet Alice, a young student who used Nexus to track her SDG progress and received recognition for her innovative community project! 🎉 Click here to read her story: https://nexus.org/success/alice"
+  },
+  {
+    "type": "System Update",
+    "description": "🚀 New Feature Alert! We've added real-time progress tracking for SDG 4 (Quality Education). Try it out here: https://nexus.org/updates/sdg4-tracker"
+  },
+  {
+    "

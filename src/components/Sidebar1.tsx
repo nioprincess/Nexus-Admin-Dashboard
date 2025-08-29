@@ -33,7 +33,7 @@ const Sidebar = ({
   const logout = async () => {
     try {
       await signOut(auth);
-      router.push("/auth/login");
+      window.location.href = "/auth/login";
     } catch (error: any) {
       console.error("Sign out error" + error.message);
     }
@@ -133,13 +133,12 @@ const Sidebar = ({
 
           {/* Footer */}
           <div className="p-4 border-t border-gray-200">
-            <Link
-              href="/auth/login"
+            <button
               className="flex items-center p-4 text-gray-700 hover:bg-greenColor/20 transition-colors"
               onClick={logout}
             >
               <FiLogOut className="mr-3" /> Logout
-            </Link>
+            </button>
           </div>
         </nav>
       </div>

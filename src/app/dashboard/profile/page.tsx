@@ -38,6 +38,7 @@ const ProfilePage = () => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setUid(user.uid);
+        console.log("Logged in user UID:", user.uid);
         const refDoc = doc(db, "normal_users", user.uid);
         const snap = await getDoc(refDoc);
         if (snap.exists()) {
@@ -160,7 +161,7 @@ const ProfilePage = () => {
       {isEditModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-            <div className="bg-blue-600 px-6 py-4 rounded-t-lg flex justify-between items-center">
+            <div className="bg-blueColor px-6 py-4 rounded-t-lg flex justify-between items-center">
               <h2 className="text-xl font-bold text-white">Edit Profile</h2>
               <button
                 onClick={() => setIsEditModalOpen(false)}
@@ -190,7 +191,7 @@ const ProfilePage = () => {
                     />
                     <label
                       htmlFor="profilePicture"
-                      className="absolute bottom-0 right-0 bg-blue-600 rounded-full p-1 cursor-pointer"
+                      className="absolute bottom-0 right-0 bg-blueColor rounded-full p-1 cursor-pointer"
                     >
                       <FiCamera className="text-white" size={14} />
                     </label>
@@ -282,7 +283,7 @@ const ProfilePage = () => {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="px-4 py-2 bg-blueColor text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
                   disabled={uploading}
                 >
                   {uploading ? "Saving..." : "Save Changes"}
@@ -294,14 +295,14 @@ const ProfilePage = () => {
       )}
 
       {/* Profile Page Content */}
-      <div className="max-w-3xl mx-auto">
+      <div className="max-w-2xl mx-auto">
         <div className="bg-white shadow rounded-lg overflow-hidden">
-          <div className="bg-blue-600 px-6 py-8 text-center">
+          <div className="bg-blueColor px-3 py-4 text-center">
             <h1 className="text-2xl font-bold text-white">Your Profile</h1>
           </div>
 
-          <div className="px-6 py-8">
-            <div className="flex flex-col md:flex-row items-center gap-8">
+          <div className="px-4 py-4">
+            <div className="flex flex-col md:flex-row items-center gap-4">
               {/* Profile Picture */}
               <div className="relative">
                 <img
@@ -349,7 +350,7 @@ const ProfilePage = () => {
             <div className="mt-8 pt-6 border-t border-gray-200 flex justify-end">
               <button
                 onClick={() => setIsEditModalOpen(true)}
-                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
+                className="inline-flex items-center px-4 py-2 text-sm font-medium rounded-md shadow-sm text-white bg-blueColor hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors"
               >
                 <FiEdit className="mr-2" />
                 Edit Profile
