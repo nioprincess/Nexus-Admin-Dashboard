@@ -28,5 +28,6 @@ This dashboard enables administrators to monitor users, analyze engagement metri
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/YOUR_ORGANIZATION/NEXUS_ADMIN_DASHBOARD.git
+[git clone https://github.com/nioprincess/Nexus-Admin-Dashboard/tree/main
 cd NEXUS_ADMIN_DASHBOARD
+
