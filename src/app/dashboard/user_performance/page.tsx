@@ -4,13 +4,15 @@ import {
   FiUsers,
   FiAward,
   FiBarChart2,
-  FiSearch,
-  FiUser,
   FiDownload,
-  FiChevronDown,
-  FiChevronUp,
+  FiTarget,
+  FiActivity,
+  FiLoader,
+  FiBook,
+  FiCheckCircle,
+  FiClock,
 } from "react-icons/fi";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -23,8 +25,18 @@ import {
   Legend,
   RadialLinearScale,
   Filler,
+  ArcElement,
 } from "chart.js";
-import { Line, Bar, Radar } from "react-chartjs-2";
+import { Line, Bar, Radar, Doughnut, Pie } from "react-chartjs-2";
+import { db } from "@/lib/firebase/firebaseConfig";
+import {
+  getFirestore,
+  collection,
+  getDocs,
+  query,
+  where,
+  orderBy,
+} from "firebase/firestore";
 
 // Register ChartJS components
 ChartJS.register(
@@ -37,522 +49,589 @@ ChartJS.register(
   Tooltip,
   Legend,
   RadialLinearScale,
-  Filler
+  Filler,
+  ArcElement
 );
 
-interface User {
-  id: number;
-  name: string;
-  avatar: string;
-  completionRate: number;
-  streak: number;
-  sdgsCovered: number;
-  lastActive: string;
-  projects: number;
-  rank: string;
+interface UserData {
+  totalUsers: number;
+  activeUsers: number;
+  newUsersThisWeek: number;
+}
+
+interface LessonData {
+  id: string;
+  title: string;
+  sdgId: string;
+  accessCount: number;
+  respondedCount: number;
+  goodResponseCount: number;
+  partialResponseCount: number;
+  poorResponseCount: number;
+  read5minCount: number;
+  lastUpdated: string;
+}
+
+interface DashboardData {
+  userData: UserData;
+  lessonsData: LessonData[];
+  loading: boolean;
 }
 
 const UserPerformanceDashboard = () => {
-  // Sample data with TypeScript typing
-  const [users, setUsers] = useState<User[]>([
-    {
-      id: 1,
-      name: "Alice K.",
-      avatar: "",
-      completionRate: 78,
-      streak: 16,
-      sdgsCovered: 5,
-      lastActive: "2023-11-15",
-      projects: 3,
-      rank: "Top 15%",
-    },
-    {
-      id: 2,
-      name: "Bob R.",
-      avatar: "",
-      completionRate: 45,
-      streak: 5,
-      sdgsCovered: 2,
-      lastActive: "2023-11-14",
-      projects: 1,
-      rank: "Top 60%",
-    },
-    {
-      id: 3,
-      name: "Charlie P.",
-      avatar: "",
-      completionRate: 92,
-      streak: 24,
-      sdgsCovered: 7,
-      lastActive: "2023-11-16",
-      projects: 5,
-      rank: "Top 5%",
-    },
-  ]);
+  const [data, setData] = useState<DashboardData>({
+    userData: { totalUsers: 0, activeUsers: 0, newUsersThisWeek: 0 },
+    lessonsData: [],
+    loading: true,
+  });
 
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>("");
-  const [currentPage, setCurrentPage] = useState<number>(1);
-  const [expandedRows, setExpandedRows] = useState<number[]>([]);
-  const usersPerPage = 5;
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
 
-  // Filter and paginate users
-  const filteredUsers = users.filter((user) =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const fetchDashboardData = async () => {
+    try {
+      setData((prev) => ({ ...prev, loading: true }));
 
-  // Pagination logic
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = filteredUsers.slice(indexOfFirstUser, indexOfLastUser);
-  const totalPages = Math.ceil(filteredUsers.length / usersPerPage);
+      // Fetch users data
+      const usersQuery = query(
+        collection(db, "normal_users"),
+        where("role", "==", "user")
+      );
+      const usersSnapshot = await getDocs(usersQuery);
 
-  const viewUserPerformance = (userId: number): void => {
-    setSelectedUser(users.find((user) => user.id === userId) || null);
+      const users = usersSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+        createdAt: doc.data().createdAt?.toDate(),
+        lastLogin: doc.data().lastLogin?.toDate(),
+      }));
+
+      // Calculate user metrics
+      const totalUsers = users.length;
+      const now = new Date();
+      const oneWeekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+      const newUsersThisWeek = users.filter(
+        (user) => user.createdAt && user.createdAt >= oneWeekAgo
+      ).length;
+
+      const FIVE_MINUTES = 5 * 60 * 1000;
+      const activeUsers = users.filter(
+        (user) =>
+          user.lastLogin &&
+          now.getTime() - user.lastLogin.getTime() <= FIVE_MINUTES
+      ).length;
+
+      // Fetch lessons data
+      const lessonsSnapshot = await getDocs(collection(db, "lessons"));
+      const lessonsData = lessonsSnapshot.docs.map((doc) => ({
+        id: doc.id,
+        title: doc.data().title || "",
+        sdgId: doc.data().sdgId || "1",
+        accessCount: doc.data().accessCount || 0,
+        respondedCount: doc.data().respondedCount || 0,
+        goodResponseCount: doc.data().goodResponseCount || 0,
+        partialResponseCount: doc.data().partialResponseCount || 0,
+        poorResponseCount: doc.data().poorResponseCount || 0,
+        read5minCount: doc.data().read5minCount || 0,
+        lastUpdated: doc.data().lastUpdated || "",
+        ...doc.data(),
+      }));
+
+      setData({
+        userData: { totalUsers, activeUsers, newUsersThisWeek },
+        lessonsData,
+        loading: false,
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard data:", error);
+      setData((prev) => ({ ...prev, loading: false }));
+    }
   };
 
-  const handlePageChange = (page: number): void => {
-    setCurrentPage(page);
-  };
-
-  const toggleRow = (userId: number) => {
-    setExpandedRows((prev) =>
-      prev.includes(userId)
-        ? prev.filter((id) => id !== userId)
-        : [...prev, userId]
+  // Calculate metrics from real data
+  const calculateCompletionRate = () => {
+    if (data.lessonsData.length === 0) return 0;
+    const totalResponded = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.respondedCount,
+      0
     );
+    const totalAccessed = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.accessCount,
+      0
+    );
+    return totalAccessed > 0
+      ? ((totalResponded / totalAccessed) * 100).toFixed(1)
+      : 0;
   };
 
-  const exportData = (): void => {
-    console.log("Exporting data:", filteredUsers);
-    alert("Export functionality would be implemented here");
+  // Chart 1: Completion Rate by SDG
+  const getCompletionBySDG = () => {
+    const sdgMap = new Map();
+
+    data.lessonsData.forEach((lesson) => {
+      const sdgId = lesson.sdgId;
+      if (!sdgMap.has(sdgId)) {
+        sdgMap.set(sdgId, { accessed: 0, responded: 0, title: `SDG ${sdgId}` });
+      }
+      const current = sdgMap.get(sdgId);
+      current.accessed += lesson.accessCount;
+      current.responded += lesson.respondedCount;
+    });
+
+    const labels = Array.from(sdgMap.keys())
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map((key) => sdgMap.get(key).title);
+
+    const completionRates = Array.from(sdgMap.values()).map((sdg) =>
+      sdg.accessed > 0 ? (sdg.responded / sdg.accessed) * 100 : 0
+    );
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Completion Rate (%)",
+          data: completionRates,
+          backgroundColor: "rgba(59, 130, 246, 0.8)",
+          borderColor: "rgb(59, 130, 246)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+      ],
+    };
   };
 
-  // Chart data for the selected user
-  const progressChartData = {
-    labels: ["Week 1", "Week 2", "Week 3", "Week 4", "Current"],
-    datasets: [
-      {
-        label: "Completion Rate",
-        data: [20, 45, 60, 70, selectedUser?.completionRate || 0],
-        borderColor: "rgb(59, 130, 246)",
-        backgroundColor: "rgba(59, 130, 246, 0.2)",
-        tension: 0.3,
-        fill: true,
+  // Chart 2: Response Quality Distribution
+  const getResponseQualityData = () => {
+    const totalGood = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.goodResponseCount,
+      0
+    );
+    const totalPartial = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.partialResponseCount,
+      0
+    );
+    const totalPoor = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.poorResponseCount,
+      0
+    );
+
+    return {
+      labels: [
+        `Good (${totalGood})`,
+        `Partial (${totalPartial})`,
+        `Poor (${totalPoor})`,
+      ],
+      datasets: [
+        {
+          data: [totalGood, totalPartial, totalPoor],
+          backgroundColor: [
+            "rgba(34, 197, 94, 0.8)",
+            "rgba(249, 115, 22, 0.8)",
+            "rgba(239, 68, 68, 0.8)",
+          ],
+          borderColor: [
+            "rgba(34, 197, 94, 1)",
+            "rgba(249, 115, 22, 1)",
+            "rgba(239, 68, 68, 1)",
+          ],
+          borderWidth: 2,
+        },
+      ],
+    };
+  };
+
+  // Chart 3: SDG Engagement - FIXED: Shows ALL SDGs with actual user counts
+  const getSdgEngagementData = () => {
+    const sdgNames = {
+      "1": "1. No Poverty",
+      "2": "2. Zero Hunger",
+      "3": "3. Good Health",
+      "4": "4. Quality Education",
+      "5": "5. Gender Equality",
+      "6": "6. Clean Water",
+      "7": "7. Affordable Energy",
+      "8": "8. Decent Work",
+      "9": "9. Industry Innovation",
+      "10": "10. Reduced Inequalities",
+      "11": "11. Sustainable Cities",
+      "12": "12. Responsible Consumption",
+      "13": "13. Climate Action",
+      "14": "14. Life Below Water",
+      "15": "15. Life on Land",
+      "16": "16. Peace & Justice",
+      "17": "17. Partnerships",
+    };
+
+    // Initialize all SDGs with 0 engagement
+    const sdgEngagement: { [key: string]: number } = {};
+    for (let i = 1; i <= 17; i++) {
+      sdgEngagement[i.toString()] = 0;
+    }
+
+    // Calculate actual engagement per SDG (total accesses)
+    data.lessonsData.forEach((lesson) => {
+      const sdgId = lesson.sdgId;
+      if (sdgEngagement.hasOwnProperty(sdgId)) {
+        sdgEngagement[sdgId] += lesson.accessCount;
+      }
+    });
+
+    // Convert to arrays for chart, maintaining SDG order (1-17)
+    const labels = Object.keys(sdgEngagement)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map((key) => sdgNames[key as keyof typeof sdgNames]);
+
+    const engagementData = Object.keys(sdgEngagement)
+      .sort((a, b) => parseInt(a) - parseInt(b))
+      .map((key) => sdgEngagement[key]);
+
+    return {
+      labels,
+      datasets: [
+        {
+          label: "Total Lesson Accesses",
+          data: engagementData,
+          backgroundColor: "rgba(34, 197, 94, 0.8)",
+          borderColor: "rgba(34, 197, 94, 1)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+      ],
+    };
+  };
+
+  // Chart 4: Access vs Response - FIXED: Shows ALL lessons with clear numbers
+  const getAccessVsResponseData = () => {
+    // Show all lessons, sorted by access count
+    const sortedLessons = [...data.lessonsData].sort(
+      (a, b) => b.accessCount - a.accessCount
+    );
+
+    return {
+      labels: sortedLessons.map((lesson) => {
+        const shortTitle =
+          lesson.title.length > 20
+            ? lesson.title.substring(0, 20) + "..."
+            : lesson.title;
+        return `${shortTitle} (SDG ${lesson.sdgId})`;
+      }),
+      datasets: [
+        {
+          label: "Users Accessed",
+          data: sortedLessons.map((lesson) => lesson.accessCount),
+          backgroundColor: "rgba(139, 92, 246, 0.8)",
+          borderColor: "rgba(139, 92, 246, 1)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+        {
+          label: "Users Responded",
+          data: sortedLessons.map((lesson) => lesson.respondedCount),
+          backgroundColor: "rgba(236, 72, 153, 0.8)",
+          borderColor: "rgba(236, 72, 153, 1)",
+          borderWidth: 2,
+          borderRadius: 4,
+        },
+      ],
+    };
+  };
+
+  // Chart 5: User Activity Distribution
+  const getUserActivityData = () => {
+    const totalAccess = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.accessCount,
+      0
+    );
+    const totalRead = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.read5minCount,
+      0
+    );
+    const totalResponse = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.respondedCount,
+      0
+    );
+    const totalGood = data.lessonsData.reduce(
+      (sum, lesson) => sum + lesson.goodResponseCount,
+      0
+    );
+
+    return {
+      labels: [
+        `Accessed\n${totalAccess.toLocaleString()}`,
+        `Read 5+ min\n${totalRead.toLocaleString()}`,
+        `Responded\n${totalResponse.toLocaleString()}`,
+        `Good Answers\n${totalGood.toLocaleString()}`,
+      ],
+      datasets: [
+        {
+          data: [totalAccess, totalRead, totalResponse, totalGood],
+          backgroundColor: [
+            "rgba(59, 130, 246, 0.8)",
+            "rgba(34, 197, 94, 0.8)",
+            "rgba(249, 115, 22, 0.8)",
+            "rgba(139, 92, 246, 0.8)",
+          ],
+          borderWidth: 2,
+          borderColor: "#fff",
+        },
+      ],
+    };
+  };
+
+  // Chart options
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: "top" as const,
+        labels: {
+          usePointStyle: true,
+          padding: 15,
+        },
       },
-    ],
+      tooltip: {
+        callbacks: {
+          label: function (context: any) {
+            let label = context.dataset.label || "";
+            if (label) {
+              label += ": ";
+            }
+            if (context.parsed.y !== null) {
+              label += context.parsed.y.toLocaleString();
+            }
+            return label;
+          },
+        },
+      },
+    },
   };
 
-  const activityChartData = {
-    labels: ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-    datasets: [
-      {
-        label: "Daily Activity (hours)",
-        data: [1.5, 2, 1.8, 2.5, 1.2, 0.5, 0.8],
-        backgroundColor: "rgba(99, 102, 241, 0.6)",
+  const barChartOptions = {
+    ...chartOptions,
+    scales: {
+      x: {
+        ticks: {
+          maxRotation: 45,
+          minRotation: 0,
+        },
       },
-    ],
+      y: {
+        beginAtZero: true,
+        ticks: {
+          callback: function (value: any) {
+            return typeof value === "number" ? value.toLocaleString() : value;
+          },
+        },
+      },
+    },
   };
 
-  const sdgProficiencyData = {
-    labels: [
-      "No Poverty",
-      "Zero Hunger",
-      "Good Health",
-      "Quality Education",
-      "Gender Equality",
-      "Clean Water",
-      "Affordable Energy",
-    ],
-    datasets: [
-      {
-        label: "Proficiency Level",
-        data: [80, 65, 90, 75, 60, 85, 70],
-        backgroundColor: "rgba(34, 197, 94, 0.2)",
-        borderColor: "rgba(34, 197, 94, 1)",
-        borderWidth: 2,
-        pointBackgroundColor: "rgba(34, 197, 94, 1)",
+  const horizontalBarOptions = {
+    ...chartOptions,
+    indexAxis: "y" as const,
+    scales: {
+      x: {
+        beginAtZero: true,
+        ticks: {
+          callback: function (value: any) {
+            return typeof value === "number" ? value.toLocaleString() : value;
+          },
+        },
       },
-    ],
+    },
   };
+
+  if (data.loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center text-gray-600">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+      // <div className="p-4 md:p-6 bg-gray-50 min-h-screen flex items-center justify-center">
+      //   <div className="text-center">
+      //     <FiLoader className="animate-spin text-4xl text-blue-600 mx-auto mb-4" />
+      //     <p className="text-gray-600">Loading dashboard data...</p>
+      //   </div>
+      // </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 bg-gray-50 min-h-screen">
-      <h1 className="text-xl md:text-2xl font-bold mb-4 md:mb-6 flex items-center gap-2">
-        <FiTrendingUp className="text-blue-600" /> User Performance Dashboard
-      </h1>
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-xl md:text-2xl font-bold mb-2 flex items-center gap-2">
+          <FiBarChart2 className="text-blue-500" />
+          User Performance Analytics
+        </h1>
+        <p className="text-gray-600 text-sm md:text-base">
+          Real-time overview of user engagement and performance metrics
+        </p>
+      </div>
 
-      {/* Search and filter bar */}
-      <div className="mb-4 md:mb-6 flex flex-col md:flex-row gap-3">
-        <div className="relative flex-1">
-          <FiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Search users..."
-            className="pl-10 pr-4 py-2 w-full border rounded-lg focus:ring-2 focus:ring-blue-500 text-sm md:text-base"
-            value={searchTerm}
-            onChange={(e) => {
-              setSearchTerm(e.target.value);
-              setCurrentPage(1);
-            }}
-          />
-        </div>
+      {/* Refresh Button */}
+      <div className="mb-6">
         <button
-          onClick={exportData}
-          className="flex items-center justify-center px-3 md:px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50"
+          onClick={fetchDashboardData}
+          className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm font-medium shadow-md"
         >
-          <FiDownload className="mr-1 md:mr-2" />
-          <span className="text-xs md:text-sm">Export Data</span>
+          Refresh Data
         </button>
       </div>
 
-      {selectedUser ? (
-        // Individual User Performance View
-        <div className="bg-white rounded-xl shadow p-4 md:p-6 mb-6">
-          <button
-            onClick={() => setSelectedUser(null)}
-            className="mb-3 md:mb-4 flex items-center text-blue-600 hover:text-blue-800 text-sm md:text-base"
-          >
-            ← Back to all users
-          </button>
+      {/* Key Metrics Cards */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        <MetricCard
+          icon={<FiUsers className="text-blue-600" />}
+          title="Total Users"
+          value={data.userData.totalUsers.toLocaleString()}
+          change={`+${data.userData.newUsersThisWeek} this week`}
+          changeType="positive"
+        />
+        <MetricCard
+          icon={<FiCheckCircle className="text-green-600" />}
+          title="Completion Rate"
+          value={`${calculateCompletionRate()}%`}
+          change="Overall completion"
+          changeType="positive"
+        />
+        <MetricCard
+          icon={<FiActivity className="text-purple-600" />}
+          title="Active Users"
+          value={data.userData.activeUsers.toLocaleString()}
+          change="Currently online"
+          changeType="positive"
+        />
+        <MetricCard
+          icon={<FiBook className="text-orange-600" />}
+          title="Total Lessons"
+          value={data.lessonsData.length.toString()}
+          change="Available content"
+          changeType="positive"
+        />
+      </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-4 md:mb-6">
-            <MetricCard
-              icon={<FiBarChart2 />}
-              title="Completion Rate"
-              value={`${selectedUser.completionRate}%`}
-            />
-            <MetricCard
-              icon={<FiAward />}
-              title="Current Streak"
-              value={`${selectedUser.streak} days`}
-            />
-            <MetricCard
-              icon={<FiUsers />}
-              title="SDGs Covered"
-              value={`${selectedUser.sdgsCovered}/17`}
-            />
-            <MetricCard
-              icon={<FiTrendingUp />}
-              title="Peer Rank"
-              value={selectedUser.rank}
-            />
+      {/* Charts Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Chart 1: Completion Rate by SDG */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center mb-4">
+            <FiTrendingUp className="text-blue-600 mr-2" />
+            <h3 className="text-lg font-semibold">
+              Completion Rate by SDG (%)
+            </h3>
           </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6">
-            <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-              <h3 className="font-medium mb-2 text-sm md:text-base">
-                Progress Over Time
-              </h3>
-              <div className="h-48 md:h-64">
-                <Line
-                  data={progressChartData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: "top",
-                      },
-                      title: {
-                        display: true,
-                        text: "Weekly Progress",
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                        max: 100,
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-            <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-              <h3 className="font-medium mb-2 text-sm md:text-base">
-                Weekly Activity
-              </h3>
-              <div className="h-48 md:h-64">
-                <Bar
-                  data={activityChartData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: "top",
-                      },
-                      title: {
-                        display: true,
-                        text: "Daily Engagement",
-                      },
-                    },
-                    scales: {
-                      y: {
-                        beginAtZero: true,
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-            <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-              <h3 className="font-medium mb-2 text-sm md:text-base">
-                SDG Proficiency
-              </h3>
-              <div className="h-48 md:h-64">
-                <Radar
-                  data={sdgProficiencyData}
-                  options={{
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                      legend: {
-                        position: "top",
-                      },
-                    },
-                    scales: {
-                      r: {
-                        angleLines: {
-                          display: true,
-                        },
-                        suggestedMin: 0,
-                        suggestedMax: 100,
-                      },
-                    },
-                  }}
-                />
-              </div>
-            </div>
-            <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-              <h3 className="font-medium mb-2 text-sm md:text-base">
-                Projects Breakdown
-              </h3>
-              <div className="h-48 md:h-64 bg-white border rounded-md flex items-center justify-center text-gray-400">
-                <PieChartPlaceholder projects={selectedUser.projects} />
-              </div>
-            </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Percentage of users who responded after accessing each SDG's lessons
+          </p>
+          <div className="h-80">
+            <Bar data={getCompletionBySDG()} options={barChartOptions} />
           </div>
         </div>
-      ) : (
-        // All Users Table View
-        <div className="bg-white rounded-xl  shadow overflow-hidden">
-          {/* Desktop Table */}
-          <div className="hidden md:block overflow-x-auto">
-            <table className="min-w-full divide-y  divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    User
-                  </th>
-                  <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Completion
-                  </th>
-                  <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Streak
-                  </th>
-                  <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    SDGs
-                  </th>
-                  <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Last Active
-                  </th>
-                  <th className="px-4 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {currentUsers.length > 0 ? (
-                  currentUsers.map((user) => (
-                    <tr key={user.id} className="hover:bg-gray-50">
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="flex-shrink-0 h-8 md:h-10 w-8 md:w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                            <FiUser className="text-gray-500 text-sm md:text-base" />
-                          </div>
-                          <div className="ml-3">
-                            <div className="text-sm font-medium text-gray-900">
-                              {user.name}
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center">
-                          <div className="w-16 md:w-24 bg-gray-200 rounded-full h-2 md:h-2.5">
-                            <div
-                              className="bg-blueColor h-2 md:h-2.5 rounded-full"
-                              style={{ width: `${user.completionRate}%` }}
-                            ></div>
-                          </div>
-                          <span className="ml-2 text-xs md:text-sm text-gray-500">
-                            {user.completionRate}%
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {user.streak} days
-                        </span>
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">
-                        {user.sdgsCovered}/17
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm text-gray-500">
-                        {user.lastActive}
-                      </td>
-                      <td className="px-4 md:px-6 py-4 whitespace-nowrap text-xs md:text-sm font-medium">
-                        <button
-                          onClick={() => viewUserPerformance(user.id)}
-                          className="text-blue-600 hover:text-blue-900"
-                        >
-                          View Details
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={6}
-                      className="px-4 md:px-6 py-4 text-center text-gray-500"
-                    >
-                      No users found
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+
+        {/* Chart 2: Response Quality Distribution */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center mb-4">
+            <FiAward className="text-green-600 mr-2" />
+            <h3 className="text-lg font-semibold">
+              Response Quality Distribution
+            </h3>
           </div>
-
-          {/* Mobile Cards */}
-          <div className="md:hidden">
-            {currentUsers.length > 0 ? (
-              currentUsers.map((user) => (
-                <div key={user.id} className="border-b border-gray-200 p-3">
-                  <div
-                    className="flex justify-between items-center cursor-pointer"
-                    onClick={() => toggleRow(user.id)}
-                  >
-                    <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10 rounded-full bg-gray-200 flex items-center justify-center">
-                        <FiUser className="text-gray-500" />
-                      </div>
-                      <div className="ml-3">
-                        <div className="text-sm font-medium text-gray-900">
-                          {user.name}
-                        </div>
-                        <div className="text-xs text-gray-500">
-                          Last active: {user.lastActive}
-                        </div>
-                      </div>
-                    </div>
-                    {expandedRows.includes(user.id) ? (
-                      <FiChevronUp className="text-gray-500" />
-                    ) : (
-                      <FiChevronDown className="text-gray-500" />
-                    )}
-                  </div>
-
-                  {expandedRows.includes(user.id) && (
-                    <div className="mt-2 space-y-2 pl-13">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs text-gray-500">
-                          Completion:
-                        </span>
-                        <div className="flex items-center w-24">
-                          <div className="w-full bg-gray-200 rounded-full h-1.5">
-                            <div
-                              className="bg-blue-600 h-1.5 rounded-full"
-                              style={{ width: `${user.completionRate}%` }}
-                            ></div>
-                          </div>
-                          <span className="ml-2 text-xs text-gray-700">
-                            {user.completionRate}%
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-xs text-gray-500">Streak:</span>
-                        <span className="px-2 inline-flex text-xs leading-4 font-semibold rounded-full bg-green-100 text-green-800">
-                          {user.streak} days
-                        </span>
-                      </div>
-
-                      <div className="flex justify-between">
-                        <span className="text-xs text-gray-500">SDGs:</span>
-                        <span className="text-xs text-gray-700">
-                          {user.sdgsCovered}/17
-                        </span>
-                      </div>
-
-                      <div className="pt-1">
-                        <button
-                          onClick={() => viewUserPerformance(user.id)}
-                          className="w-full py-1 text-xs text-blue-600 hover:text-blue-800 border border-blue-200 rounded"
-                        >
-                          View Details
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))
-            ) : (
-              <div className="px-4 py-4 text-center text-gray-500">
-                No users found
-              </div>
-            )}
+          <p className="text-sm text-gray-600 mb-4">
+            Breakdown of answer quality across all lessons
+          </p>
+          <div className="h-80">
+            <Doughnut data={getResponseQualityData()} options={chartOptions} />
           </div>
-
-          {/* Pagination */}
-          {filteredUsers.length > usersPerPage && (
-            <div className="px-3 md:px-4 py-3 bg-gray-50 border-t flex flex-col md:flex-row items-center justify-between space-y-2 md:space-y-0">
-              <div className="text-xs md:text-sm text-gray-700">
-                Showing{" "}
-                <span className="font-medium">{indexOfFirstUser + 1}</span> to{" "}
-                <span className="font-medium">
-                  {Math.min(indexOfLastUser, filteredUsers.length)}
-                </span>{" "}
-                of <span className="font-medium">{filteredUsers.length}</span>{" "}
-                users
-              </div>
-              <div className="flex space-x-1">
-                <button
-                  onClick={() => handlePageChange(currentPage - 1)}
-                  disabled={currentPage === 1}
-                  className="px-2 md:px-3 py-1 border rounded-md text-xs md:text-sm disabled:opacity-50"
-                >
-                  Prev
-                </button>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(
-                  (page) => (
-                    <button
-                      key={page}
-                      onClick={() => handlePageChange(page)}
-                      className={`px-2 md:px-3 py-1 border rounded-md text-xs md:text-sm ${
-                        currentPage === page ? "bg-blue-50 text-blue-600" : ""
-                      }`}
-                    >
-                      {page}
-                    </button>
-                  )
-                )}
-                <button
-                  onClick={() => handlePageChange(currentPage + 1)}
-                  disabled={currentPage === totalPages}
-                  className="px-2 md:px-3 py-1 border rounded-md text-xs md:text-sm disabled:opacity-50"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-      )}
+
+        {/* Chart 3: SDG Engagement - FIXED */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center mb-4">
+            <FiTarget className="text-emerald-600 mr-2" />
+            <h3 className="text-lg font-semibold">SDG Engagement (All SDGs)</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Total lesson accesses for each Sustainable Development Goal
+          </p>
+          <div className="h-80">
+            <Bar data={getSdgEngagementData()} options={horizontalBarOptions} />
+          </div>
+        </div>
+
+        {/* Chart 4: Access vs Response - FIXED */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center mb-4">
+            <FiUsers className="text-purple-600 mr-2" />
+            <h3 className="text-lg font-semibold">
+              All Lessons: Access vs Response
+            </h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            Comparison between users who accessed lessons vs those who responded
+          </p>
+          <div className="h-80">
+            <Bar data={getAccessVsResponseData()} options={barChartOptions} />
+          </div>
+        </div>
+
+        {/* Chart 5: User Activity Distribution */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+          <div className="flex items-center mb-4">
+            <FiActivity className="text-orange-600 mr-2" />
+            <h3 className="text-lg font-semibold">User Activity Funnel</h3>
+          </div>
+          <p className="text-sm text-gray-600 mb-4">
+            User progression from accessing lessons to providing good answers
+          </p>
+          <div className="h-80">
+            <Pie data={getUserActivityData()} options={chartOptions} />
+          </div>
+        </div>
+      </div>
+
+      {/* Data Explanation Section
+      <div className="mt-8 bg-white rounded-xl shadow-lg p-6 border border-gray-100">
+        <h3 className="text-lg font-semibold mb-4">
+          📊 Understanding Your Data
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
+          <div>
+            <h4 className="font-semibold mb-2">SDG Engagement Chart</h4>
+            <ul className="space-y-1">
+              <li>
+                • Shows <strong>all 17 Sustainable Development Goals</strong>
+              </li>
+              <li>
+                • Numbers represent <strong>total lesson accesses</strong> per
+                SDG
+              </li>
+              <li>• Higher bars = more popular SDG content</li>
+              <li>• Helps identify which SDGs need more content</li>
+            </ul>
+          </div>
+          <div>
+            <h4 className="font-semibold mb-2">Lessons: Access vs Response</h4>
+            <ul className="space-y-1">
+              <li>
+                • Shows <strong>all your lessons</strong> sorted by popularity
+              </li>
+              <li>
+                • <span className="text-purple-600">Purple bars</span> = Users
+                who accessed
+              </li>
+              <li>
+                • <span className="text-pink-600">Pink bars</span> = Users who
+                responded
+              </li>
+              <li>• Gap shows engagement opportunity</li>
+            </ul>
+          </div> 
+        </div>
+      </div>*/}
     </div>
   );
 };
@@ -561,33 +640,37 @@ interface MetricCardProps {
   icon: React.ReactNode;
   title: string;
   value: string | number;
+  change: string;
+  changeType: "positive" | "negative";
 }
 
-const MetricCard = ({ icon, title, value }: MetricCardProps) => (
-  <div className="bg-gray-50 p-3 md:p-4 rounded-lg border border-gray-200">
-    <div className="flex items-center">
-      <div className="p-1.5 md:p-2 rounded-full bg-blue-100 text-blue-600">
+const MetricCard = ({
+  icon,
+  title,
+  value,
+  change,
+  changeType,
+}: MetricCardProps) => (
+  <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-100 hover:shadow-xl transition-shadow duration-300">
+    <div className="flex items-center justify-between mb-4">
+      <div className="p-3 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 shadow-inner">
         {icon}
       </div>
-      <div className="ml-2 md:ml-3">
-        <p className="text-xs md:text-sm font-medium text-gray-500">{title}</p>
-        <p className="text-sm md:text-lg font-semibold">{value}</p>
-      </div>
+      <span
+        className={`text-xs font-medium px-2 py-1 rounded-full ${
+          changeType === "positive"
+            ? "text-green-700 bg-green-50"
+            : "text-red-700 bg-red-50"
+        }`}
+      >
+        {change}
+      </span>
+    </div>
+    <div>
+      <p className="text-sm font-medium text-gray-600 mb-2">{title}</p>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
     </div>
   </div>
 );
-
-const PieChartPlaceholder = ({ projects }: { projects: number }) => {
-  return (
-    <div className="text-center">
-      <div className="w-24 md:w-32 h-24 md:h-32 rounded-full bg-blue-50 flex items-center justify-center mx-auto mb-1 md:mb-2">
-        <span className="text-xl md:text-2xl font-bold text-blue-600">
-          {projects}
-        </span>
-      </div>
-      <p className="text-xs md:text-sm text-gray-500">Active Projects</p>
-    </div>
-  );
-};
 
 export default UserPerformanceDashboard;

@@ -76,7 +76,7 @@ export default function Navbar({
           {/* Right section - Navigation items */}
           <div className="flex items-center space-x-3 sm:space-x-6">
             {/* Notification and help icons */}
-            <button className="hidden sm:block p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors">
+            {/* <button className="hidden sm:block p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors">
               <FiBell size={20} />
               <span className="sr-only">Notifications</span>
             </button>
@@ -84,7 +84,7 @@ export default function Navbar({
             <button className="hidden sm:block p-1 text-gray-600 hover:text-gray-900 rounded-full hover:bg-gray-100 transition-colors">
               <FiHelpCircle size={20} />
               <span className="sr-only">Help</span>
-            </button>
+            </button> */}
 
             {/* Profile section */}
             {!loading && (

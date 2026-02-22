@@ -451,10 +451,15 @@ export default function ManageNotifications() {
         </div>
         <button
           onClick={() => setIsFormOpen(true)}
-          className="flex items-center px-4 py-2 bg-blueColor text-white rounded-md hover:bg-blue-500 transition-colors"
+          className="flex items-center justify-center gap-2 
+             px-3 py-1.5 text-[10px]
+             sm:px-4 sm:py-2 sm:text-[12px] 
+             md:px-5 md:py-2.5 md:text-sm
+             lg:px-6 lg:py-3 lg:text-base
+             bg-blueColor text-white font-medium
+             rounded-md hover:bg-blue-500 transition-colors"
         >
-          <FiPlus className="mr-2" />
-          Create Notification
+          + Create Notification
         </button>
       </div>
 

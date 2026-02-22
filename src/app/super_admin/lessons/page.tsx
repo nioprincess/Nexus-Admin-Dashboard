@@ -101,7 +101,6 @@ const SDGS = [
     image: "/sdg17.webp",
     color: "#FF3A21",
   },
-  // Add all 17 SDGs here...
 ];
 
 type Lesson = {
@@ -112,9 +111,17 @@ type Lesson = {
   description: string;
   activities: string[];
   interactiveQuestion: string;
-  answer: String;
+  answer: string;
   status: "Published" | "Draft";
   lastUpdated: string;
+  // new fields
+  accessCount: number;
+  read5minCount: number;
+  respondedCount: number;
+  goodResponseCount: number;
+  poorResponseCount: number;
+  partialResponseCount: number;
+  avgProgress: number;
 };
 
 export default function ManageLessons() {
@@ -139,6 +146,13 @@ export default function ManageLessons() {
     interactiveQuestion: "",
     answer: "",
     status: "Draft",
+    accessCount: 0,
+    read5minCount: 0,
+    respondedCount: 0,
+    goodResponseCount: 0,
+    poorResponseCount: 0,
+    partialResponseCount: 0,
+    avgProgress: 0,
   });
 
   const [data, setData] = useState<Lesson[]>([]);
@@ -180,7 +194,7 @@ export default function ManageLessons() {
       header: "Activities",
       cell: ({ row }) => (
         <ul className="list-disc list-inside">
-          {row.original.activities.map((activity, i) => (
+          {(row.original.activities || []).map((activity, i) => (
             <li key={i} className="text-sm line-clamp-1">
               {activity}
             </li>
@@ -233,13 +247,13 @@ export default function ManageLessons() {
     columns,
     state: {
       columnFilters,
-      pagination, // Add this
+      pagination,
     },
     onColumnFiltersChange: setColumnFilters,
-    onPaginationChange: setPagination, // Add this
+    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(), // Add this
+    getPaginationRowModel: getPaginationRowModel(),
   });
 
   const handleInputChange = (
@@ -248,7 +262,10 @@ export default function ManageLessons() {
     >
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    setFormData((prev) => ({
+      ...prev,
+      [name]: isNaN(Number(value)) ? value : Number(value),
+    }));
   };
 
   const handleActivityChange = (index: number, value: string) => {
@@ -280,24 +297,39 @@ export default function ManageLessons() {
 
     const currentDate = new Date().toISOString().split("T")[0];
 
+    const safeFormData = {
+      ...formData,
+      accessCount: formData.accessCount ?? 0,
+      read5minCount: formData.read5minCount ?? 0,
+      respondedCount: formData.respondedCount ?? 0,
+      goodResponseCount: formData.goodResponseCount ?? 0,
+      poorResponseCount: formData.poorResponseCount ?? 0,
+      partialResponseCount: formData.partialResponseCount ?? 0,
+      avgProgress: formData.avgProgress ?? 0,
+    };
+
     if (editingLesson) {
       const lessonRef = doc(db, "lessons", editingLesson.id);
-      await updateDoc(lessonRef, { ...formData, lastUpdated: currentDate });
+      await updateDoc(lessonRef, { ...safeFormData, lastUpdated: currentDate });
       setData(
         data.map((lesson) =>
           lesson.id === editingLesson.id
-            ? { ...formData, id: editingLesson.id, lastUpdated: currentDate }
+            ? {
+                ...safeFormData,
+                id: editingLesson.id,
+                lastUpdated: currentDate,
+              }
             : lesson
         )
       );
     } else {
       const docRef = await addDoc(collection(db, "lessons"), {
-        ...formData,
+        ...safeFormData,
         lastUpdated: currentDate,
       });
       setData([
         ...data,
-        { ...formData, id: docRef.id, lastUpdated: currentDate },
+        { ...safeFormData, id: docRef.id, lastUpdated: currentDate },
       ]);
     }
 
@@ -308,14 +340,23 @@ export default function ManageLessons() {
     setEditingLesson(lesson);
     setSelectedSdg(SDGS.find((sdg) => sdg.id === lesson.sdgId) || null);
     setFormData({
-      sdgId: lesson.sdgId,
-      image: lesson.image,
-      title: lesson.title,
-      description: lesson.description,
-      activities: [...lesson.activities],
-      interactiveQuestion: lesson.interactiveQuestion,
+      sdgId: lesson.sdgId || "",
+      image: lesson.image || "",
+      title: lesson.title || "",
+      description: lesson.description || "",
+      activities: lesson.activities ? [...lesson.activities] : [""],
+      interactiveQuestion: lesson.interactiveQuestion || "",
       answer: "",
-      status: lesson.status,
+      status: lesson.status || "Draft",
+
+      // new fields with default 0
+      accessCount: lesson.accessCount ?? 0,
+      read5minCount: lesson.read5minCount ?? 0,
+      respondedCount: lesson.respondedCount ?? 0,
+      goodResponseCount: lesson.goodResponseCount ?? 0,
+      poorResponseCount: lesson.poorResponseCount ?? 0,
+      partialResponseCount: lesson.partialResponseCount ?? 0,
+      avgProgress: lesson.avgProgress ?? 0,
     });
     setFormStep("form");
     setIsFormOpen(true);
@@ -338,6 +379,13 @@ export default function ManageLessons() {
       interactiveQuestion: "",
       answer: "",
       status: "Draft",
+      accessCount: 0,
+      read5minCount: 0,
+      respondedCount: 0,
+      goodResponseCount: 0,
+      poorResponseCount: 0,
+      partialResponseCount: 0,
+      avgProgress: 0,
     });
     setSelectedSdg(null);
     setEditingLesson(null);
@@ -365,13 +413,35 @@ export default function ManageLessons() {
       reader.readAsDataURL(file);
     }
   };
+
   useEffect(() => {
     const fetchLessons = async () => {
       const querySnapshot = await getDocs(collection(db, "lessons"));
-      const lessonsData: Lesson[] = querySnapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...(docSnap.data() as Omit<Lesson, "id">),
-      }));
+      const lessonsData: Lesson[] = querySnapshot.docs.map((docSnap) => {
+        const data = docSnap.data() as Partial<Lesson>;
+        return {
+          id: docSnap.id,
+          sdgId: data.sdgId || "",
+          image: data.image || "",
+          title: data.title || "",
+          description: data.description || "",
+          activities: data.activities || [""],
+          interactiveQuestion: data.interactiveQuestion || "",
+          answer: "",
+          status: data.status || "Draft",
+          lastUpdated: data.lastUpdated || "",
+
+          // ensure new fields exist
+          accessCount: data.accessCount ?? 0,
+          read5minCount: data.read5minCount ?? 0,
+          respondedCount: data.respondedCount ?? 0,
+          goodResponseCount: data.goodResponseCount ?? 0,
+          poorResponseCount: data.poorResponseCount ?? 0,
+          partialResponseCount: data.partialResponseCount ?? 0,
+          avgProgress: data.avgProgress ?? 0,
+        };
+      });
+
       setData(lessonsData);
     };
 

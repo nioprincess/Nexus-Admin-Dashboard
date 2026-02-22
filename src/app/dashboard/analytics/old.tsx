@@ -16,6 +16,14 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import {
+  FiUsers,
+  FiActivity,
+  FiAward,
+  FiTrendingUp,
+  FiBook,
+  FiCheckCircle,
+} from "react-icons/fi";
 
 // Register all required Chart.js components
 ChartJS.register(
@@ -28,11 +36,13 @@ ChartJS.register(
   ArcElement,
   Title,
   Tooltip,
-  Legend,
+  Legend
 );
 
 export default function AnalyticComponent() {
   const [monthlyEngagement, setMonthlyEngagement] = useState<number[]>([]);
+  const [dailyLabels, setDailyLabels] = useState<string[]>([]);
+  const [dailyCounts, setDailyCounts] = useState<number[]>([]);
   const [sdgEngagement, setSdgEngagement] = useState<number[]>([]);
   const [metrics, setMetrics] = useState({
     totalUsers: 0,
@@ -51,7 +61,7 @@ export default function AnalyticComponent() {
 
         // Fetch users data with safe timestamp handling
         const usersSnapshot = await getDocs(
-          query(collection(db, "normal_users"), where("role", "==", "user")),
+          query(collection(db, "normal_users"), where("role", "==", "user"))
         );
         const users = usersSnapshot.docs.map((doc) => {
           const data = doc.data();
@@ -88,14 +98,7 @@ export default function AnalyticComponent() {
 
         // Fetch answers data
         const answersSnapshot = await getDocs(collection(db, "answers"));
-        const answers = answersSnapshot.docs.map((doc) => {
-          const data = doc.data();
-          return {
-            id: doc.id,
-            ...data,
-            userId: data.userId ?? null, // Ensure userId is present
-          };
-        });
+        const answers = answersSnapshot.docs.map((doc) => doc.data());
 
         // Calculate metrics
         const now = new Date();
@@ -104,11 +107,11 @@ export default function AnalyticComponent() {
 
         const totalUsers = users.length;
         const newUsersThisWeek = users.filter(
-          (user) => user.createdAt && user.createdAt >= oneWeekAgo,
+          (user) => user.createdAt && user.createdAt >= oneWeekAgo
         ).length;
 
         const activeUsers = users.filter(
-          (user) => user.lastLogin && user.lastLogin >= oneDayAgo,
+          (user) => user.lastLogin && user.lastLogin >= oneDayAgo
         ).length;
 
         const totalLessons = lessons.length;
@@ -116,7 +119,7 @@ export default function AnalyticComponent() {
 
         // Calculate completion rate
         const usersWithResponses = new Set(
-          answers.map((answer) => answer.userId),
+          answers.map((answer) => answer.userId)
         );
         const completionRate =
           totalUsers > 0 ? (usersWithResponses.size / totalUsers) * 100 : 0;
@@ -131,8 +134,9 @@ export default function AnalyticComponent() {
         });
 
         // Fetch chart data
+        // await fetchDailyActiveUsers(users);
         await fetchMonthlyEngagement(users);
-        await fetchSdgEngagement(lessons, answers, users.length);
+        await fetchSdgEngagement(lessons);
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
       } finally {
@@ -142,6 +146,37 @@ export default function AnalyticComponent() {
 
     fetchAllData();
   }, []);
+
+  // const fetchDailyActiveUsers = async (users: any[]) => {
+  //   const today = new Date();
+  //   const last7Days: { [date: string]: Set<string> } = {};
+
+  //   for (let i = 6; i >= 0; i--) {
+  //     const d = new Date(today);
+  //     d.setDate(today.getDate() - i);
+  //     const key = d.toLocaleDateString("en-US", {
+  //       month: "short",
+  //       day: "numeric",
+  //     });
+  //     last7Days[key] = new Set();
+  //   }
+
+  //   users.forEach((user) => {
+  //     if (user.lastLogin) {
+  //       const loginDate = user.lastLogin;
+  //       const key = loginDate.toLocaleDateString("en-US", {
+  //         month: "short",
+  //         day: "numeric",
+  //       });
+  //       if (last7Days[key]) {
+  //         last7Days[key].add(user.id);
+  //       }
+  //     }
+  //   });
+
+  //   setDailyLabels(Object.keys(last7Days));
+  //   setDailyCounts(Object.values(last7Days).map((s) => s.size));
+  // };
 
   const fetchMonthlyEngagement = async (users: any[]) => {
     const monthlyCounts: { [key: string]: number } = {
@@ -159,7 +194,6 @@ export default function AnalyticComponent() {
       Dec: 0,
     };
 
-    // Count users per month
     users.forEach((user) => {
       if (user.lastLogin) {
         const month = user.lastLogin.toLocaleString("default", {
@@ -171,56 +205,19 @@ export default function AnalyticComponent() {
       }
     });
 
-    // Convert to percentage (scale to 100)
-    const totalUsers = users.length;
-    const monthlyPercentages = Object.values(monthlyCounts).map((count) =>
-      totalUsers > 0 ? Math.round((count / totalUsers) * 100) : 0,
-    );
-
-    setMonthlyEngagement(monthlyPercentages);
+    setMonthlyEngagement(Object.values(monthlyCounts));
   };
 
-  const fetchSdgEngagement = async (
-    lessons: any[],
-    answers: any[],
-    totalUsers: number,
-  ) => {
-    // Initialize SDG counts for all 17 SDGs
-    const sdgCounts = new Array(17).fill(0);
-
-    // Count unique users who completed lessons for each SDG
-    const sdgUserMap: { [key: number]: Set<string> } = {};
-
-    // Initialize sets for each SDG
-    for (let i = 1; i <= 17; i++) {
-      sdgUserMap[i] = new Set();
-    }
-
-    // Map each answer to its lesson and SDG
-    answers.forEach((answer) => {
-      const lesson = lessons.find((l) => l.id === answer.lessonId);
-      if (lesson && lesson.sdg) {
-        // Assuming lesson.sdg contains the SDG number (1-17)
-        const sdgNumber = parseInt(lesson.sdg);
-        if (sdgNumber >= 1 && sdgNumber <= 17 && answer.userId) {
-          sdgUserMap[sdgNumber].add(answer.userId);
-        }
-      }
-    });
-
-    // Convert user counts to percentages of total users
-    const sdgPercentages = [];
-    for (let i = 1; i <= 17; i++) {
-      const userCount = sdgUserMap[i].size;
-      const percentage =
-        totalUsers > 0 ? Math.round((userCount / totalUsers) * 100) : 0;
-      sdgPercentages.push(percentage);
-    }
-
-    setSdgEngagement(sdgPercentages);
+  const fetchSdgEngagement = async (lessons: any[]) => {
+    // Use sample data for SDG engagement as in original design
+    const sampleSdgData = [
+      1250, 980, 1560, 2100, 1750, 890, 1430, 1120, 950, 1300, 680, 1540, 720,
+      1100, 850, 980, 1200,
+    ];
+    setSdgEngagement(sampleSdgData);
   };
 
-  // Chart Data Definitions
+  // Chart Data Definitions - Keeping Original Design
   const barData = {
     labels: [
       "Jan",
@@ -238,7 +235,7 @@ export default function AnalyticComponent() {
     ],
     datasets: [
       {
-        label: "User Engagement (%)",
+        label: "User Engagement",
         data: monthlyEngagement,
         backgroundColor: "rgba(59, 130, 246, 0.5)",
         borderColor: "rgb(59, 130, 246)",
@@ -269,7 +266,7 @@ export default function AnalyticComponent() {
     ],
     datasets: [
       {
-        label: "Users Completed (%)",
+        label: "Users Engaged",
         data: sdgEngagement,
         backgroundColor: [
           "#E5243B",
@@ -322,7 +319,12 @@ export default function AnalyticComponent() {
           label: function (context: any) {
             const label = context.label || "";
             const value = context.raw || 0;
-            return `${label}: ${value}% of users completed`;
+            const total = context.dataset.data.reduce(
+              (a: number, b: number) => a + b,
+              0
+            );
+            const percentage = Math.round((value / total) * 100);
+            return `${label}: ${value} users (${percentage}%)`;
           },
         },
       },
@@ -338,28 +340,52 @@ export default function AnalyticComponent() {
       },
       title: {
         display: true,
-        text: "Monthly User Engagement (%)",
+        text: "Monthly Engagement",
         font: {
           size: 14,
         },
       },
     },
-    scales: {
-      y: {
-        beginAtZero: true,
-        max: 100,
-        title: {
-          display: true,
-          text: "Percentage of Users (%)",
-        },
-        ticks: {
-          callback: function (value: any) {
-            return value + "%";
-          },
-        },
-      },
-    },
   };
+
+  // const usageData = {
+  //   labels: dailyLabels,
+  //   datasets: [
+  //     {
+  //       label: "Daily Active Users",
+  //       data: dailyCounts,
+  //       borderColor: "rgb(59, 130, 246)",
+  //       backgroundColor: "rgba(59, 130, 246, 0.1)",
+  //       tension: 0.3,
+  //       fill: true,
+  //     },
+  //   ],
+  // };
+
+  // User Feedback Data (keeping original design)
+  // const feedbackData = {
+  //   labels: [
+  //     "Very Satisfied",
+  //     "Satisfied",
+  //     "Neutral",
+  //     "Dissatisfied",
+  //     "Very Dissatisfied",
+  //   ],
+  //   datasets: [
+  //     {
+  //       label: "Feedback Count",
+  //       data: [320, 450, 120, 60, 30],
+  //       backgroundColor: [
+  //         "rgba(16, 185, 129, 0.7)",
+  //         "rgba(101, 163, 13, 0.7)",
+  //         "rgba(234, 179, 8, 0.7)",
+  //         "rgba(245, 158, 11, 0.7)",
+  //         "rgba(239, 68, 68, 0.7)",
+  //       ],
+  //       borderWidth: 0,
+  //     },
+  //   ],
+  // };
 
   if (loading) {
     return (
@@ -377,7 +403,7 @@ export default function AnalyticComponent() {
       <h1 className="text-2xl font-bold mb-6">Nexus Analytics</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Monthly Engagement Chart */}
+        {/* Monthly Engagement Chart - Original Design */}
         <ChartWrapper
           type="bar"
           data={barData}
@@ -385,10 +411,10 @@ export default function AnalyticComponent() {
           className="h-[400px]"
         />
 
-        {/* SDG Engagement Chart with Scroll */}
+        {/* SDG Engagement Chart - Original Design with Scroll */}
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <div className="p-4 border-b border-gray-100">
-            <h3 className="font-medium text-gray-800">SDG Completion Rate</h3>
+            <h3 className="font-medium text-gray-800">SDG User Engagement</h3>
           </div>
           <div className="overflow-auto h-[400px] p-4">
             <div className="min-w-[600px] min-h-[350px]">
@@ -401,7 +427,107 @@ export default function AnalyticComponent() {
             </div>
           </div>
         </div>
+
+        {/* Daily Active Users Chart - Original Design */}
+        {/* <ChartWrapper
+          type="line"
+          data={usageData}
+          options={{
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: true,
+                text: "Daily Active Users (Last 7 Days)",
+                font: {
+                  size: 14,
+                },
+              },
+              legend: {
+                labels: {
+                  usePointStyle: true,
+                },
+              },
+            },
+            scales: {
+              y: {
+                beginAtZero: true,
+                ticks: {
+                  callback: (value: any) => value,
+                },
+              },
+              x: {
+                ticks: {
+                  callback: (value: any) => value,
+                },
+              },
+            },
+          }}
+          className="h-[300px]"
+        /> */}
+
+        {/* User Feedback Chart - Original Design
+        <ChartWrapper
+          type="bar"
+          data={feedbackData}
+          options={{
+            indexAxis: "y" as const,
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              title: {
+                display: true,
+                text: "User Feedback Distribution",
+                font: {
+                  size: 14,
+                },
+              },
+              legend: { display: false },
+            },
+            scales: {
+              x: {
+                ticks: {
+                  callback: (value: any) => value,
+                },
+              },
+            },
+          }}
+          className="h-[300px]"
+        /> */}
       </div>
     </div>
   );
 }
+
+interface MetricCardProps {
+  icon: React.ReactNode;
+  title: string;
+  value: string | number;
+  change: string;
+  changeType: "positive" | "negative";
+}
+
+const MetricCard = ({
+  icon,
+  title,
+  value,
+  change,
+  changeType,
+}: MetricCardProps) => (
+  <div className="bg-white rounded-lg shadow p-4 border border-gray-100">
+    <div className="flex items-center justify-between mb-2">
+      <div className="p-2 rounded-lg bg-gray-50 text-gray-600">{icon}</div>
+      <span
+        className={`text-xs font-medium ${
+          changeType === "positive" ? "text-green-600" : "text-red-600"
+        }`}
+      >
+        {change}
+      </span>
+    </div>
+    <div>
+      <p className="text-sm font-medium text-gray-500 mb-1">{title}</p>
+      <p className="text-2xl font-bold text-gray-900">{value}</p>
+    </div>
+  </div>
+);
